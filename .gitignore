@@ -1,0 +1,10 @@
+/.bundle/
+/.ruby-version
+/.tool-versions
+*.gem
+coverage/
+log/
+tmp/
+.DS_Store
+.idea/
+.vscode/
