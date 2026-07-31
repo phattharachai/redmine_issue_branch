@@ -330,17 +330,27 @@ class StagingE2eHarnessTest < ActiveSupport::TestCase
     ]
   end
 
-  def service(adapter, revision, close_by_merge: false, close_keyword: nil)
-    RedmineIssueBranch::RevisionEnrichmentService.new(
+  UNSET = Object.new
+  private_constant :UNSET
+
+  # close_keyword defaults to UNSET (rather than nil) and is only forwarded
+  # when explicitly given, so callers that omit it fall through to
+  # RevisionEnrichmentService's own default (RedmineIssueBranch.close_keyword,
+  # backed by the real Setting.commit_update_keywords) instead of a
+  # hard-coded nil silently overriding it.
+  def service(adapter, revision, close_by_merge: false, close_keyword: UNSET)
+    kwargs = {
       repository: Repository.new(id: 1842, scm: adapter, changesets: NullChangesets.new),
       revision: revision,
       enabled: true,
       protected_branches: %w[main master],
       reference_keyword: 'refs',
       close_by_merge: close_by_merge,
-      close_keyword: close_keyword,
       logger: ActiveSupport::Logger.new(IO::NULL)
-    )
+    }
+    kwargs[:close_keyword] = close_keyword unless close_keyword.equal?(UNSET)
+
+    RedmineIssueBranch::RevisionEnrichmentService.new(**kwargs)
   end
 
   def git(directory, *arguments)
