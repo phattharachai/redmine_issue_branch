@@ -33,9 +33,13 @@ class StagingE2eHarnessTest < ActiveSupport::TestCase
     FileUtils.mkdir_p(@work_path)
 
     git(@root, 'init', '--bare', @bare_path)
+    git(@root, "--git-dir=#{@bare_path}", 'config', 'gc.auto', '0')
+    git(@root, "--git-dir=#{@bare_path}", 'config', 'maintenance.auto', 'false')
     git(@work_path, 'init', '--initial-branch=main')
     git(@work_path, 'config', 'user.name', 'Redmine Test')
     git(@work_path, 'config', 'user.email', 'redmine@example.test')
+    git(@work_path, 'config', 'gc.auto', '0')
+    git(@work_path, 'config', 'maintenance.auto', 'false')
     git(@work_path, 'remote', 'add', 'origin', @bare_path)
 
     commit_file('base.txt', "base\n", 'Initial commit')
@@ -43,7 +47,18 @@ class StagingE2eHarnessTest < ActiveSupport::TestCase
   end
 
   def teardown
-    FileUtils.remove_entry(@root) if @root && File.exist?(@root)
+    return unless @root && File.exist?(@root)
+
+    attempts = 3
+    begin
+      FileUtils.remove_entry(@root)
+    rescue Errno::ENOTEMPTY
+      attempts -= 1
+      raise if attempts.zero?
+
+      sleep 0.05
+      retry
+    end
   end
 
   test 'enriches a positive issue branch through a bare Git repository' do
