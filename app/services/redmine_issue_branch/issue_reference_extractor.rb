@@ -18,6 +18,7 @@ module RedmineIssueBranch
     IGNORED_REFS = %r{\Arefs/(?:tags|pull)/}i
     LOCAL_HEAD_PREFIX = %r{\Arefs/heads/}i
     REMOTE_HEAD_PREFIX = %r{\Arefs/remotes/[^/]+/}i
+    REMOTE_LIST_PREFIX = %r{\Aremotes/[^/]+/}i
     COMMON_REMOTE_PREFIX = %r{\A(?:origin|upstream)/}i
 
     def call(reference)
@@ -54,6 +55,7 @@ module RedmineIssueBranch
       reference
         .sub(LOCAL_HEAD_PREFIX, '')
         .sub(REMOTE_HEAD_PREFIX, '')
+        .sub(REMOTE_LIST_PREFIX, '')
         .sub(COMMON_REMOTE_PREFIX, '')
     end
 

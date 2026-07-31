@@ -23,6 +23,14 @@ class IssueReferenceExtractorTest < ActiveSupport::TestCase
     assert_equal 'bugfix/redmine-42-fix-token', result.normalized_reference
   end
 
+  test 'normalizes refs returned by git branch all' do
+    result = @extractor.call('remotes/origin/bugfix/redmine-42-fix-token')
+
+    assert result.matched?
+    assert_equal 42, result.issue_id
+    assert_equal 'bugfix/redmine-42-fix-token', result.normalized_reference
+  end
+
   test 'rejects tags and pull request references' do
     tag = @extractor.call('refs/tags/redmine-42')
     pull_request = @extractor.call('refs/pull/42/head')
