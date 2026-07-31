@@ -99,7 +99,7 @@ Commits already reachable from a protected base branch are deliberately not
 linked from feature branch names. This prevents a full repository import from
 linking shared base history to the current feature issue.
 
-## Test
+## Automated tests
 
 From the Redmine application root:
 
@@ -109,8 +109,32 @@ RAILS_ENV=test bundle exec rake \
   NAME=redmine_issue_branch
 ```
 
+The unit suite includes an isolated staging-style integration harness. It
+creates temporary working and bare Git repositories, exercises real
+`branches_containing` lookups, and removes the repositories after each test.
+It covers positive, negative, ambiguous, protected-branch, duplicate,
+multiple-branch, invalid-SHA, Git-error, original-object, tag, and pull-request
+reference behavior. It does not require a plugin-level Gemfile, a production
+repository, or repository credentials.
+
 CI validates the plugin against Redmine's `6.1-stable` branch with Ruby 3.2,
 3.3, and 3.4 using PostgreSQL 14.
+
+## Manual staging E2E verification
+
+Use [docs/staging-e2e-checklist.md](docs/staging-e2e-checklist.md) for the
+Redmine 6.1 staging checks that automated bare-Git tests cannot prove:
+Changeset persistence, native Issue association, staging configuration, import
+timing, and sanitized operational logs.
+
+Every staging test case must use a new commit because Redmine may not run
+`save_revision` again for an existing Changeset. For the positive case, do not
+merge or otherwise make the commit reachable from a configured protected
+branch before the import. Use only a disposable staging repository and keep
+`close_by_merge` disabled.
+
+The checklist separates read-only evidence collection from cleanup. It does
+not automatically delete Issues, Changesets, branches, or repositories.
 
 ## Security defaults
 
