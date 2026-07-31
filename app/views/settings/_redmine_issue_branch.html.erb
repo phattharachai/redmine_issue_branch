@@ -1,0 +1,32 @@
+<p>
+  <%= hidden_field_tag 'settings[enabled]', '0', id: nil %>
+  <%= check_box_tag 'settings[enabled]', '1', settings['enabled'] == '1' %>
+  <%= label_tag 'settings_enabled', l(:label_redmine_issue_branch_enabled) %>
+</p>
+
+<p>
+  <%= label_tag 'settings_reference_keyword', l(:label_redmine_issue_branch_reference_keyword) %>
+  <%= text_field_tag 'settings[reference_keyword]',
+                     settings['reference_keyword'].presence || 'refs',
+                     maxlength: 32,
+                     required: true %>
+  <em class="info"><%= l(:text_redmine_issue_branch_reference_keyword_help) %></em>
+</p>
+
+<p>
+  <%= hidden_field_tag 'settings[close_by_merge]', '0', id: nil %>
+  <%= check_box_tag 'settings[close_by_merge]',
+                    '1',
+                    settings['close_by_merge'] == '1',
+                    disabled: true %>
+  <%= label_tag 'settings_close_by_merge', l(:label_redmine_issue_branch_close_by_merge) %>
+  <em class="info"><%= l(:text_redmine_issue_branch_close_by_merge_unavailable) %></em>
+</p>
+
+<p>
+  <%= label_tag 'settings_merge_branches', l(:label_redmine_issue_branch_merge_branches) %>
+  <%= text_area_tag 'settings[merge_branches]',
+                    settings['merge_branches'].presence || "main\nmaster",
+                    rows: 4 %>
+  <em class="info"><%= l(:text_redmine_issue_branch_merge_branches_help) %></em>
+</p>

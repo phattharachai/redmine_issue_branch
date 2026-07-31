@@ -1,0 +1,8 @@
+en:
+  label_redmine_issue_branch_enabled: Enable branch reference processing
+  label_redmine_issue_branch_reference_keyword: Reference keyword
+  label_redmine_issue_branch_close_by_merge: Close issues on merge
+  label_redmine_issue_branch_merge_branches: Allowed merge target branches
+  text_redmine_issue_branch_reference_keyword_help: "Use a Redmine repository keyword such as refs."
+  text_redmine_issue_branch_close_by_merge_unavailable: "Reserved for a later release and disabled in v0.1.0."
+  text_redmine_issue_branch_merge_branches_help: "Enter one branch per line. These values are inactive until merge processing is implemented."

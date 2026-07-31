@@ -1,0 +1,66 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: redmine-issue-branch-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plugin-tests:
+    name: Redmine 6.1 / Ruby ${{ matrix.ruby }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby:
+          - '3.2'
+          - '3.3'
+          - '3.4'
+
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_DB: redmine_test
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: root
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Redmine 6.1
+        uses: actions/checkout@v6
+        with:
+          repository: redmine/redmine
+          ref: 6.1-stable
+
+      - name: Checkout plugin
+        uses: actions/checkout@v6
+        with:
+          path: plugins/redmine_issue_branch
+
+      - name: Set up Redmine test environment
+        uses: ./.github/actions/setup-redmine
+        with:
+          db-type: postgresql
+          ruby-version: ${{ matrix.ruby }}
+
+      - name: Run plugin unit tests
+        env:
+          RAILS_ENV: test
+        run: bundle exec rake redmine:plugins:test:units NAME=redmine_issue_branch
