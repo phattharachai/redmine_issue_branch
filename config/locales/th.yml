@@ -4,5 +4,9 @@ th:
   label_redmine_issue_branch_close_by_merge: ปิด Issue เมื่อ Merge
   label_redmine_issue_branch_merge_branches: Base Branch ที่ป้องกัน
   text_redmine_issue_branch_reference_keyword_help: "ใช้ Redmine repository keyword เช่น refs"
-  text_redmine_issue_branch_close_by_merge_unavailable: "สงวนไว้สำหรับรุ่นถัดไปและปิดใช้งานใน v0.2.0"
+  text_redmine_issue_branch_close_by_merge_help: >-
+    ปิด Issue เฉพาะกรณี merge commit ที่มี 2 parent จริง (ไม่ใช่ fast-forward,
+    squash หรือ rebase) และ merge เข้า protected base branch เท่านั้น โดยใช้
+    "Fixing keywords" ที่ตั้งค่าไว้ใน Redmine เอง (Administration > Settings >
+    Repositories)
   text_redmine_issue_branch_merge_branches_help: "ระบุหนึ่ง Branch ต่อบรรทัด Commit ที่อยู่ใน Branch เหล่านี้แล้วจะไม่ถูกเชื่อมจากชื่อ Feature Branch"

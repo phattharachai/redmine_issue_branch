@@ -7,7 +7,13 @@ require_relative '../test_helper'
 
 class StagingE2eHarnessTest < ActiveSupport::TestCase
   Revision = Struct.new(:scmid, :message, keyword_init: true)
-  Repository = Struct.new(:id, :scm, keyword_init: true)
+  Repository = Struct.new(:id, :scm, :changesets, keyword_init: true)
+
+  class NullChangesets
+    def find_by(revision:)
+      nil
+    end
+  end
 
   class RecordingAdapter
     include RedmineIssueBranch::Patches::GitAdapterPatch
@@ -166,6 +172,123 @@ class StagingE2eHarnessTest < ActiveSupport::TestCase
     assert_same original, enriched
   end
 
+  test 'closes an issue for a genuine merge commit landing on main' do
+    feature_sha = create_branch_commit('test/redmine-1842-import', 'Add export')
+    reset_to_main
+    merge_sha = merge_into_current_branch(
+      'test/redmine-1842-import',
+      'Merge export'
+    )
+    git(@work_path, 'push', 'origin', 'main')
+
+    original, enriched = close_via_merge(merge_sha, 'Merge export', close_keyword: 'closes')
+
+    assert_not_same original, enriched
+    assert_equal "Merge export\n\ncloses #1842", enriched.message
+    assert_equal(
+      'Merge export',
+      git(@bare_path, 'show', '--no-patch', '--format=%s', merge_sha).strip
+    )
+    refute_nil feature_sha
+  end
+
+  test 'does not close a merge commit when close_by_merge is disabled' do
+    create_branch_commit('test/redmine-1842-import', 'Add export')
+    reset_to_main
+    merge_sha = merge_into_current_branch(
+      'test/redmine-1842-import',
+      'Merge export'
+    )
+    git(@work_path, 'push', 'origin', 'main')
+
+    revision = Revision.new(scmid: merge_sha, message: 'Merge export')
+    adapter = Redmine::Scm::Adapters::GitAdapter.new(@bare_path)
+    result = service(adapter, revision, close_by_merge: false, close_keyword: 'closes').call
+
+    assert_same revision, result
+  end
+
+  test 'does not close a squash merge (no parent link to the source branch)' do
+    create_branch_commit('test/redmine-1842-import', 'Add export')
+    reset_to_main
+    git(@work_path, 'merge', '--squash', 'test/redmine-1842-import')
+    commit_file('squash.txt', "squash\n", 'Squash merge export')
+    squash_sha = git(@work_path, 'rev-parse', 'HEAD').strip
+    git(@work_path, 'push', 'origin', 'main')
+
+    original, enriched = close_via_merge(squash_sha, 'Squash merge export', close_keyword: 'closes')
+
+    assert_same original, enriched
+  end
+
+  test 'does not close an octopus merge' do
+    git(@work_path, 'switch', '-c', 'test/redmine-1842-import')
+    commit_file('first.txt', "first\n", 'Add export')
+
+    reset_to_main
+    git(@work_path, 'switch', '-c', 'test/redmine-2048-import')
+    commit_file('second.txt', "second\n", 'Add another export')
+
+    reset_to_main
+    git(
+      @work_path,
+      'merge', '--no-ff', '-m', 'Octopus merge',
+      'test/redmine-1842-import', 'test/redmine-2048-import'
+    )
+    octopus_sha = git(@work_path, 'rev-parse', 'HEAD').strip
+    git(@work_path, 'push', 'origin', 'main')
+
+    original, enriched = close_via_merge(octopus_sha, 'Octopus merge', close_keyword: 'closes')
+
+    assert_same original, enriched
+  end
+
+  test 'does not close a merge landing on a branch outside the protected list' do
+    create_branch_commit('test/redmine-1842-import', 'Add export')
+    git(@work_path, 'switch', '-c', 'develop', 'main')
+    merge_sha = merge_into_current_branch(
+      'test/redmine-1842-import',
+      'Merge export into develop'
+    )
+    git(@work_path, 'push', '-u', 'origin', 'develop')
+
+    # The merge commit's own containing branch is only 'develop', which is
+    # neither a configured protected branch nor a `redmine-<id>` token, so
+    # the merge-close path is never attempted and the commit is left as-is
+    # -- exactly like any other non-matching commit.
+    original, enriched = close_via_merge(
+      merge_sha,
+      'Merge export into develop',
+      close_keyword: 'closes'
+    )
+
+    assert_same original, enriched
+  end
+
+  test 'closes an issue using the real Redmine update-keywords setting' do
+    original_update_keywords = Setting.commit_update_keywords
+    begin
+      Setting.commit_update_keywords = [{'keywords' => 'closes'}]
+
+      create_branch_commit('test/redmine-1842-import', 'Add export')
+      reset_to_main
+      merge_sha = merge_into_current_branch(
+        'test/redmine-1842-import',
+        'Merge export'
+      )
+      git(@work_path, 'push', 'origin', 'main')
+
+      revision = Revision.new(scmid: merge_sha, message: 'Merge export')
+      adapter = Redmine::Scm::Adapters::GitAdapter.new(@bare_path)
+      enriched = service(adapter, revision, close_by_merge: true).call
+
+      assert_not_same revision, enriched
+      assert_equal "Merge export\n\ncloses #1842", enriched.message
+    ensure
+      Setting.commit_update_keywords = original_update_keywords
+    end
+  end
+
   private
 
   def create_branch_commit(branch, message)
@@ -185,6 +308,11 @@ class StagingE2eHarnessTest < ActiveSupport::TestCase
     git(@work_path, 'commit', '-m', message)
   end
 
+  def merge_into_current_branch(branch, message)
+    git(@work_path, 'merge', '--no-ff', '-m', message, branch)
+    git(@work_path, 'rev-parse', 'HEAD').strip
+  end
+
   def enrich(sha, message)
     revision = Revision.new(scmid: sha, message: message)
     adapter = Redmine::Scm::Adapters::GitAdapter.new(@bare_path)
@@ -192,15 +320,37 @@ class StagingE2eHarnessTest < ActiveSupport::TestCase
     [revision, service(adapter, revision).call]
   end
 
-  def service(adapter, revision)
-    RedmineIssueBranch::RevisionEnrichmentService.new(
-      repository: Repository.new(id: 1842, scm: adapter),
+  def close_via_merge(sha, message, close_keyword:)
+    revision = Revision.new(scmid: sha, message: message)
+    adapter = Redmine::Scm::Adapters::GitAdapter.new(@bare_path)
+
+    [
+      revision,
+      service(adapter, revision, close_by_merge: true, close_keyword: close_keyword).call
+    ]
+  end
+
+  UNSET = Object.new
+  private_constant :UNSET
+
+  # close_keyword defaults to UNSET (rather than nil) and is only forwarded
+  # when explicitly given, so callers that omit it fall through to
+  # RevisionEnrichmentService's own default (RedmineIssueBranch.close_keyword,
+  # backed by the real Setting.commit_update_keywords) instead of a
+  # hard-coded nil silently overriding it.
+  def service(adapter, revision, close_by_merge: false, close_keyword: UNSET)
+    kwargs = {
+      repository: Repository.new(id: 1842, scm: adapter, changesets: NullChangesets.new),
       revision: revision,
       enabled: true,
       protected_branches: %w[main master],
       reference_keyword: 'refs',
+      close_by_merge: close_by_merge,
       logger: ActiveSupport::Logger.new(IO::NULL)
-    )
+    }
+    kwargs[:close_keyword] = close_keyword unless close_keyword.equal?(UNSET)
+
+    RedmineIssueBranch::RevisionEnrichmentService.new(**kwargs)
   end
 
   def git(directory, *arguments)

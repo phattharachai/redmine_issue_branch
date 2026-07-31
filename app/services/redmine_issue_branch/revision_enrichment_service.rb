@@ -10,6 +10,8 @@ module RedmineIssueBranch
       enabled: RedmineIssueBranch.enabled?,
       protected_branches: RedmineIssueBranch.merge_branches,
       reference_keyword: RedmineIssueBranch.reference_keyword,
+      close_by_merge: RedmineIssueBranch.close_by_merge?,
+      close_keyword: RedmineIssueBranch.close_keyword,
       logger: Rails.logger
     )
       @repository = repository
@@ -18,6 +20,8 @@ module RedmineIssueBranch
       @protected_branches = Array(protected_branches)
       @extractor = IssueReferenceExtractor.new
       @enricher = RevisionMessageEnricher.new(reference_keyword: reference_keyword)
+      @close_by_merge = close_by_merge
+      @close_keyword = close_keyword
       @logger = logger
     end
 
@@ -25,7 +29,8 @@ module RedmineIssueBranch
       return revision unless enabled
 
       results = containing_branches.map {|branch| extractor.call(branch)}
-      return revision if protected_revision?(results)
+      protected_branch = protected_branch_match(results)
+      return handle_protected_revision(protected_branch) if protected_branch
 
       matched_results = results.select(&:matched?)
       issue_ids = matched_results.map(&:issue_id).uniq
@@ -45,19 +50,46 @@ module RedmineIssueBranch
     private
 
     attr_reader :repository, :revision, :enabled, :protected_branches,
-                :extractor, :enricher, :logger
+                :extractor, :enricher, :close_by_merge, :close_keyword, :logger
 
     def containing_branches
       Array(repository.scm.branches_containing(revision.scmid))
     end
 
-    def protected_revision?(results)
+    def protected_branch_match(results)
       normalized_branches = results.map(&:normalized_reference)
-      protected = normalized_branches & protected_branches
-      return false if protected.empty?
+      (normalized_branches & protected_branches).first
+    end
 
-      audit('skipped', reason: 'protected_branch', branch: protected.first)
-      true
+    def handle_protected_revision(branch)
+      return close_via_merge if close_by_merge
+
+      audit('skipped', reason: 'protected_branch', branch: branch)
+      revision
+    end
+
+    def close_via_merge
+      unless close_keyword
+        audit('skipped', reason: 'fix_keyword_unset')
+        return revision
+      end
+
+      result = MergeCommitIssueResolver.new(repository: repository, revision: revision).call
+      return close(result.issue_id) if result.matched?
+
+      audit('skipped', reason: "merge_#{result.reason}")
+      revision
+    end
+
+    def close(issue_id)
+      closer = RevisionMessageEnricher.new(reference_keyword: close_keyword)
+      enriched_message = closer.call(message: revision.message, issue_id: issue_id)
+      return revision if enriched_message == revision.message.to_s
+
+      enriched_revision = revision.dup
+      enriched_revision.message = enriched_message
+      audit('closed', issue_id: issue_id)
+      enriched_revision
     end
 
     def ambiguous?(results, issue_ids)

@@ -2,13 +2,14 @@
 
 require_relative '../app/services/redmine_issue_branch/issue_reference_extractor'
 require_relative '../app/services/redmine_issue_branch/revision_message_enricher'
+require_relative '../app/services/redmine_issue_branch/merge_commit_issue_resolver'
 require_relative '../app/services/redmine_issue_branch/revision_enrichment_service'
 require_relative 'redmine_issue_branch/patches/git_adapter_patch'
 require_relative 'redmine_issue_branch/patches/repository_git_patch'
 
 module RedmineIssueBranch
   PLUGIN_ID = :redmine_issue_branch
-  VERSION = '0.2.0'
+  VERSION = '0.3.0'
 
   class << self
     def settings
@@ -33,6 +34,10 @@ module RedmineIssueBranch
               .map(&:strip)
               .reject(&:empty?)
               .uniq
+    end
+
+    def close_keyword
+      Setting.commit_update_keywords_array.pluck('keywords').flatten.compact.first
     end
 
     def apply_patches!
