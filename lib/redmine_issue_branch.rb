@@ -34,18 +34,26 @@ module RedmineIssueBranch
               .reject(&:empty?)
               .uniq
     end
+
+    def apply_patches!
+      git_adapter = Redmine::Scm::Adapters::GitAdapter
+      repository_git = Repository::Git
+
+      unless git_adapter.ancestors.include?(Patches::GitAdapterPatch)
+        git_adapter.prepend(Patches::GitAdapterPatch)
+      end
+
+      unless repository_git.ancestors.include?(Patches::RepositoryGitPatch)
+        repository_git.prepend(Patches::RepositoryGitPatch)
+      end
+    end
   end
 end
 
 Rails.application.config.to_prepare do
-  git_adapter = Redmine::Scm::Adapters::GitAdapter
-  repository_git = Repository::Git
-
-  unless git_adapter.ancestors.include?(RedmineIssueBranch::Patches::GitAdapterPatch)
-    git_adapter.prepend(RedmineIssueBranch::Patches::GitAdapterPatch)
-  end
-
-  unless repository_git.ancestors.include?(RedmineIssueBranch::Patches::RepositoryGitPatch)
-    repository_git.prepend(RedmineIssueBranch::Patches::RepositoryGitPatch)
-  end
+  RedmineIssueBranch.apply_patches!
 end
+
+# Redmine loads plugin init files after the application's initial prepare pass.
+# Apply once during boot, then retain to_prepare for development class reloads.
+RedmineIssueBranch.apply_patches!
