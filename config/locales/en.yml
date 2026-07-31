@@ -4,5 +4,9 @@ en:
   label_redmine_issue_branch_close_by_merge: Close issues on merge
   label_redmine_issue_branch_merge_branches: Protected base branches
   text_redmine_issue_branch_reference_keyword_help: "Use a Redmine repository keyword such as refs."
-  text_redmine_issue_branch_close_by_merge_unavailable: "Reserved for a later release and disabled in v0.2.0."
+  text_redmine_issue_branch_close_by_merge_help: >-
+    Closes an issue only for a genuine two-parent merge commit landing on a
+    protected base branch, using this Redmine's own "Fix issues" keyword
+    (Administration > Settings > Repositories). Fast-forward, squash, and
+    rebase merges are not supported.
   text_redmine_issue_branch_merge_branches_help: "Enter one branch per line. Commits already contained in these branches are not linked from feature branch names."

@@ -17,10 +17,9 @@
   <%= hidden_field_tag 'settings[close_by_merge]', '0', id: nil %>
   <%= check_box_tag 'settings[close_by_merge]',
                     '1',
-                    settings['close_by_merge'] == '1',
-                    disabled: true %>
+                    settings['close_by_merge'] == '1' %>
   <%= label_tag 'settings_close_by_merge', l(:label_redmine_issue_branch_close_by_merge) %>
-  <em class="info"><%= l(:text_redmine_issue_branch_close_by_merge_unavailable) %></em>
+  <em class="info"><%= l(:text_redmine_issue_branch_close_by_merge_help) %></em>
 </p>
 
 <p>

@@ -6,7 +6,7 @@ Redmine::Plugin.register :redmine_issue_branch do
   name 'Redmine Issue Branch'
   author 'Phattharachai Vongkoon'
   description 'Links Redmine issues to Git branch references during changeset import.'
-  version '0.2.0'
+  version '0.3.0'
   url 'https://github.com/phattharachai/redmine_issue_branch'
   author_url 'https://github.com/phattharachai'
 
