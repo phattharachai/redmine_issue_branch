@@ -4,19 +4,41 @@ require_relative '../test_helper'
 
 class RevisionEnrichmentServiceTest < ActiveSupport::TestCase
   Revision = Struct.new(:scmid, :message, keyword_init: true)
-  Repository = Struct.new(:id, :scm, keyword_init: true)
+  Repository = Struct.new(:id, :scm, :changesets, keyword_init: true)
+  Issue = Struct.new(:id, keyword_init: true)
+  Changeset = Struct.new(:revision, :issues, keyword_init: true)
 
   class FakeAdapter
     attr_reader :calls
 
-    def initialize(branches)
+    def initialize(branches, parents: [], branch_heads: {})
       @branches = branches
+      @parents = parents
+      @branch_heads = branch_heads
       @calls = 0
     end
 
     def branches_containing(_scmid)
       @calls += 1
       @branches
+    end
+
+    def parents_of(_scmid)
+      @parents
+    end
+
+    def branch_heads_at(scmid)
+      @branch_heads.fetch(scmid, [])
+    end
+  end
+
+  class FakeChangesets
+    def initialize(records = {})
+      @records = records
+    end
+
+    def find_by(revision:)
+      @records[revision]
     end
   end
 
@@ -68,15 +90,117 @@ class RevisionEnrichmentServiceTest < ActiveSupport::TestCase
     assert_same original, service.call
   end
 
+  test 'closes an issue for a genuine merge commit landing on a protected branch' do
+    base_sha = 'a' * 40
+    feature_sha = 'b' * 40
+    adapter = FakeAdapter.new(
+      ['main'],
+      parents: [base_sha, feature_sha],
+      branch_heads: {feature_sha => ['feature/redmine-1842-add-export']}
+    )
+
+    original, service =
+      build_service(
+        [],
+        adapter: adapter,
+        close_by_merge: true,
+        close_keyword: 'closes'
+      )
+
+    enriched = service.call
+
+    assert_not_same original, enriched
+    assert_equal "Add export\n\ncloses #1842", enriched.message
+  end
+
+  test 'does not close when close_by_merge is disabled, even for a genuine merge commit' do
+    base_sha = 'a' * 40
+    feature_sha = 'b' * 40
+    adapter = FakeAdapter.new(
+      ['main'],
+      parents: [base_sha, feature_sha],
+      branch_heads: {feature_sha => ['feature/redmine-1842-add-export']}
+    )
+
+    original, service =
+      build_service([], adapter: adapter, close_by_merge: false, close_keyword: 'closes')
+
+    assert_same original, service.call
+  end
+
+  test 'does not close when no Redmine fix keyword is configured' do
+    base_sha = 'a' * 40
+    feature_sha = 'b' * 40
+    adapter = FakeAdapter.new(
+      ['main'],
+      parents: [base_sha, feature_sha],
+      branch_heads: {feature_sha => ['feature/redmine-1842-add-export']}
+    )
+
+    original, service =
+      build_service([], adapter: adapter, close_by_merge: true, close_keyword: nil)
+
+    assert_same original, service.call
+  end
+
+  test 'does not close a single-parent commit reachable from a protected branch' do
+    adapter = FakeAdapter.new(['main'], parents: ['a' * 40])
+
+    original, service =
+      build_service([], adapter: adapter, close_by_merge: true, close_keyword: 'closes')
+
+    assert_same original, service.call
+  end
+
+  test 'does not close an octopus merge' do
+    adapter = FakeAdapter.new(
+      ['main'],
+      parents: ['a' * 40, 'b' * 40, 'c' * 40]
+    )
+
+    original, service =
+      build_service([], adapter: adapter, close_by_merge: true, close_keyword: 'closes')
+
+    assert_same original, service.call
+  end
+
+  test 'closes via an existing Changeset association when the source branch is gone' do
+    base_sha = 'a' * 40
+    feature_sha = 'b' * 40
+    adapter = FakeAdapter.new(['main'], parents: [base_sha, feature_sha])
+    changeset = Changeset.new(revision: feature_sha, issues: [Issue.new(id: 1842)])
+
+    original, service =
+      build_service(
+        [],
+        adapter: adapter,
+        changesets: {feature_sha => changeset},
+        close_by_merge: true,
+        close_keyword: 'closes'
+      )
+
+    enriched = service.call
+
+    assert_not_same original, enriched
+    assert_equal "Add export\n\ncloses #1842", enriched.message
+  end
+
   private
 
-  def build_service(branches, adapter: FakeAdapter.new(branches), enabled: true)
+  def build_service(
+    branches,
+    adapter: FakeAdapter.new(branches),
+    enabled: true,
+    changesets: {},
+    close_by_merge: false,
+    close_keyword: nil
+  )
     revision =
       Revision.new(
         scmid: 'a' * 40,
         message: 'Add export'
       )
-    repository = Repository.new(id: 3, scm: adapter)
+    repository = Repository.new(id: 3, scm: adapter, changesets: FakeChangesets.new(changesets))
     logger = ActiveSupport::Logger.new(IO::NULL)
 
     service =
@@ -86,6 +210,8 @@ class RevisionEnrichmentServiceTest < ActiveSupport::TestCase
         enabled: enabled,
         protected_branches: %w[main master],
         reference_keyword: 'refs',
+        close_by_merge: close_by_merge,
+        close_keyword: close_keyword,
         logger: logger
       )
 
