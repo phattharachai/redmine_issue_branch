@@ -265,12 +265,10 @@ class StagingE2eHarnessTest < ActiveSupport::TestCase
     assert_same original, enriched
   end
 
-  test 'closes an issue using the real Redmine fix-keyword setting' do
-    original_fix_keywords = Setting.commit_fix_keywords
-    original_fix_status_id = Setting.commit_fix_status_id
+  test 'closes an issue using the real Redmine update-keywords setting' do
+    original_update_keywords = Setting.commit_update_keywords
     begin
-      Setting.commit_fix_keywords = 'closes'
-      Setting.commit_fix_status_id = IssueStatus.first&.id
+      Setting.commit_update_keywords = [{'keywords' => 'closes'}]
 
       create_branch_commit('test/redmine-1842-import', 'Add export')
       reset_to_main
@@ -287,8 +285,7 @@ class StagingE2eHarnessTest < ActiveSupport::TestCase
       assert_not_same revision, enriched
       assert_equal "Merge export\n\ncloses #1842", enriched.message
     ensure
-      Setting.commit_fix_keywords = original_fix_keywords
-      Setting.commit_fix_status_id = original_fix_status_id
+      Setting.commit_update_keywords = original_update_keywords
     end
   end
 

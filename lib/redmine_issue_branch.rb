@@ -37,7 +37,7 @@ module RedmineIssueBranch
     end
 
     def close_keyword
-      Setting.commit_fix_keywords.to_s.split(',').map(&:strip).reject(&:empty?).first
+      Setting.commit_update_keywords_array.pluck('keywords').flatten.compact.first
     end
 
     def apply_patches!

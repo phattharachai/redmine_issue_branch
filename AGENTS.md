@@ -135,14 +135,15 @@ Preserve these rules unless a reviewed design explicitly replaces them:
   commit) landing on a configured protected base branch, whose incoming
   parent resolves unambiguously to exactly one Issue. Any other shape
   (single-parent commit, octopus merge, zero or multiple resolved Issues,
-  or no configured Redmine fix keyword/status) fails closed, identically to
+  or no configured Redmine Fixing keyword) fails closed, identically to
   the existing protected-branch skip.
 - `close_by_merge` must never call `Issue#update`/`update_column` or any
   other direct Issue mutation. The only write path is Redmine's own
   untouched `Changeset#scan_for_issues`, using Redmine's own configured
-  `Setting.commit_fix_keywords`/`commit_fix_status_id`. The plugin must never
-  add a separate plugin-level close-keyword setting that could drift from
-  Redmine's own configured fix keywords.
+  `Setting.commit_update_keywords` ("Fixing keywords", **Administration →
+  Settings → Repositories**). The plugin must never add a separate
+  plugin-level close-keyword setting that could drift from Redmine's own
+  configured keywords.
 - Only an explicit `redmine-<positive-integer>` branch token is valid.
 - Tags, pull-request refs, zero IDs, malformed IDs, and missing IDs do not
   match.

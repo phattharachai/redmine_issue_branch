@@ -17,10 +17,11 @@ the commit and appends a configured reference such as `refs #1842` to the
 message stored by Redmine. The Git commit itself is never modified.
 
 Version 0.3.0 adds an opt-in, guarded merge-to-close policy: a genuine
-two-parent merge commit landing on a protected base branch can append
-Redmine's own configured "Fix issues" keyword instead of a plain reference,
-letting Redmine's native `Changeset#scan_for_issues` close the issue. See
-"Merge-to-close behavior" below.
+two-parent merge commit landing on a protected base branch can append one of
+Redmine's own configured "Fixing keywords" (**Administration → Settings →
+Repositories**) instead of a plain reference, letting Redmine's native
+`Changeset#scan_for_issues` close the issue. See "Merge-to-close behavior"
+below.
 
 ## Supported branch format
 
@@ -85,15 +86,15 @@ branch is not simply skipped; it is checked for a genuine merge:
    when the feature-branch commit was originally imported), then, if no
    association is recorded, from any branch whose current tip is exactly
    that parent SHA.
-3. If exactly one Issue is resolved, the plugin appends Redmine's own
-   configured "fix" keyword (`Setting.commit_fix_keywords`, configured under
-   **Administration → Settings → Repositories**) to the changeset message
+3. If exactly one Issue is resolved, the plugin appends the first configured
+   "Fixing keyword" from Redmine's own `commit_update_keywords` setting
+   (**Administration → Settings → Repositories**) to the changeset message
    instead of the plain reference keyword. Redmine's unmodified
    `Changeset#scan_for_issues` then performs the actual status transition,
-   subject to Redmine's own configured fix status and workflow.
+   using whichever status/tracker rule it has configured for that keyword.
 4. Any ambiguity (zero or multiple resolved Issues, an octopus merge, or no
-   configured fix keyword/status) fails closed: the revision is left
-   unenriched, exactly like the existing protected-branch skip.
+   Fixing keyword configured) fails closed: the revision is left unenriched,
+   exactly like the existing protected-branch skip.
 
 The plugin never mutates an Issue directly. The only write path is Redmine's
 own native commit-fix-keyword mechanism, unchanged.
@@ -144,11 +145,12 @@ linking shared base history to the current feature issue.
 
 - Enable branch reference processing (above) and staging validation before
   enabling **Close issues on merge**.
-- Configure Redmine's own "Fix issues" keyword and close status under
-  **Administration → Settings → Repositories** — the plugin never adds its
-  own separate close-keyword setting; it only reuses Redmine's configuration
-  so it can never trigger something Redmine's native commit-keyword feature
-  wouldn't already recognize.
+- Configure at least one row of Redmine's own "Fixing keywords" (with a
+  status) under **Administration → Settings → Repositories** —
+  `commit_update_keywords`. The plugin never adds its own separate
+  close-keyword setting; it only reuses Redmine's configuration so it can
+  never trigger something Redmine's native commit-keyword feature wouldn't
+  already recognize.
 - See [Merge-to-close behavior](#merge-to-close-behavior) for exactly which
   merges qualify.
 

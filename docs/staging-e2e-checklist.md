@@ -12,9 +12,10 @@ association, configuration, and operational evidence.
 - Never use production credentials or a production repository.
 - Keep `close_by_merge` disabled unless this test window is specifically
   validating the merge-to-close matrix below. Confirm and record Redmine's
-  own `Setting.commit_fix_keywords`/`commit_fix_status_id` configuration
-  before enabling `close_by_merge`, and restore `close_by_merge=false`
-  immediately after that window.
+  own `Setting.commit_update_keywords` ("Fixing keywords", **Administration
+  → Settings → Repositories**) configuration before enabling
+  `close_by_merge`, and restore `close_by_merge=false` immediately after
+  that window.
 - Keep the plugin disabled until configuration and repository scope have been
   reviewed.
 - Create a new commit for every test case. Redmine may skip a revision already
@@ -114,19 +115,20 @@ immediately after collecting evidence.
 ## Merge-to-close test matrix
 
 Run only when `close_by_merge` is intentionally enabled for this test window.
-Requires Redmine's own "Fix issues" keyword and close status configured
-under **Administration → Settings → Repositories**, recorded in the test
-record above alongside the plugin's own settings.
+Requires at least one Redmine "Fixing keyword" rule (with a status)
+configured under **Administration → Settings → Repositories** —
+`commit_update_keywords` — recorded in the test record above alongside the
+plugin's own settings.
 
 | Test case | Setup | Expected Redmine result |
 |---|---|---|
-| Merge positive | `git merge --no-ff` a `redmine-<id>` branch into a protected branch | Merge commit message gains Redmine's configured fix keyword; Issue closes per Redmine's own workflow |
+| Merge positive | `git merge --no-ff` a `redmine-<id>` branch into a protected branch | Merge commit message gains Redmine's first configured Fixing keyword; Issue closes per Redmine's own configured rule |
 | Merge, `close_by_merge=false` | Same merge, feature disabled | Merge commit unchanged — proves default-off safety |
 | Squash merge | `git merge --squash` + commit (no parent link) | Not closed — documented limitation |
-| Merge into non-protected branch | Merge into a branch not in the configured protected list | Falls through to plain reference enrichment, not closing |
+| Merge into non-protected branch | Merge into a branch not in the configured protected list | Left unenriched — the merge commit's own containing branch carries no `redmine-<id>` token |
 | Octopus merge | `git merge branch1 branch2` (3+ parents) into a protected branch | Fail closed; message unchanged |
 | Merged branch already deleted | Delete the source branch before the merge commit is imported, source commit previously imported with a resolvable Issue association | Resolves via the existing Changeset association; closes |
-| No Redmine fix keyword/status configured | `close_by_merge=true`, `Setting.commit_fix_keywords`/`commit_fix_status_id` unset | Fail closed; no keyword appended |
+| No Redmine Fixing keyword configured | `close_by_merge=true`, `commit_update_keywords` unset/empty | Fail closed; no keyword appended |
 
 ## Import verification
 
